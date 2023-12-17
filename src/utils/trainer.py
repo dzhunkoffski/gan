@@ -33,6 +33,8 @@ class Trainer:
             len_epoch = len(train_loader)
         self.len_epoch = len_epoch
         self.device = device
+        
+        self.epoch = start_epoch
 
         if wandb.run is not None:
             wandb.finish()
@@ -47,7 +49,7 @@ class Trainer:
     def _train_epoch(self):
         self.model_g.train()
         self.model_d.train()
-        for image, _ in tqdm(self.train_loader, total=self.len_epoch):
+        for image, _ in tqdm(self.train_loader, total=self.len_epoch, desc=f'Epoch: {self.epoch}'):
             real_image = image.to(self.device)
             batch_size = real_image.size()[0]
             real_label = torch.ones((batch_size, 1), dtype=torch.float).to(self.device)
@@ -91,5 +93,6 @@ class Trainer:
             
     def train(self, n_epoch: int):
         for epoch in range(self.start_epoch, n_epoch + 1):
+            self.epoch = epoch
             self._train_epoch()
             self._generate_examples()
