@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
+import torchvision.utils as vutils
 
 import wandb
 
@@ -80,7 +81,15 @@ class Trainer:
             }, step=self.step)
             self.step += 1
 
+    @torch.no_grad()
+    def _generate_examples(self):
+        fake_image = torch.randn(size=(64, 100)).to(self.device)
+        fake_image = self.model_g(fake_image)
+
+        grid = vutils.make_grid(fake_image, nrow=8, padding=2, normalize=True)
+        wandb.log({'generated_images': wandb.Image(grid)})
             
     def train(self, n_epoch: int):
         for epoch in range(self.start_epoch, n_epoch + 1):
             self._train_epoch()
+            self._generate_examples()
