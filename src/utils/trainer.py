@@ -87,7 +87,7 @@ class Trainer:
         fake_image = self.model_g(fake_image)
 
         grid = vutils.make_grid(fake_image, nrow=8, padding=2, normalize=True)
-        wandb.log({'generated_images': wandb.Image(grid)})
+        wandb.log({'generated_images': wandb.Image(grid)}, step=self.step)
             
     def train(self, n_epoch: int):
         for epoch in range(self.start_epoch, n_epoch + 1):
