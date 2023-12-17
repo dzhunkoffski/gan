@@ -85,6 +85,7 @@ class Trainer:
 
     @torch.no_grad()
     def _generate_examples(self):
+        self.model_g.eval()
         fake_image = torch.randn(size=(64, 100)).to(self.device)
         fake_image = self.model_g(fake_image)
 
