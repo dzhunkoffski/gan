@@ -45,6 +45,20 @@ class Trainer:
         )
 
         self.step = 0
+    
+    @torch.no_grad()
+    def get_grad_norm(self, model, norm_type=2):
+        parameters = model.parameters()
+        if isinstance(parameters, torch.Tensor):
+            parameters = [parameters]
+        parameters = [p for p in parameters if p.grad is not None]
+        total_norm = torch.norm(
+            torch.stack(
+                [torch.norm(p.grad.detach(), norm_type).cpu() for p in parameters]
+            ),
+            norm_type,
+        )
+        return total_norm.item()
 
     def _train_epoch(self):
         self.model_g.train()
@@ -79,7 +93,8 @@ class Trainer:
             g_loss = g_loss.item()
 
             wandb.log({
-                'g_loss': g_loss, 'd_loss': d_loss
+                'g_loss': g_loss, 'd_loss': d_loss, 
+                'g_norm': self.get_grad_norm(self.model_g), 'd_norm': self.get_grad_norm(self.model_d)
             }, step=self.step)
             self.step += 1
 
