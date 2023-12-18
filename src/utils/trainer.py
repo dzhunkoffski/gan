@@ -2,10 +2,20 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 import torchvision.utils as vutils
+from torch.utils.data import DataLoader, TensorDataset
+
+from piq import ssim, SSIMLoss, FID
 
 import wandb
 
 from tqdm import tqdm
+
+def collate_fn(data):
+    images, labels = zip(*data)
+    images = torch.stack(images, dim=0).float()
+    labels = torch.tensor(labels).int()
+    return {'images': images, 'labels': labels}
+
 
 class Trainer:
     def __init__(
@@ -63,8 +73,8 @@ class Trainer:
     def _train_epoch(self):
         self.model_g.train()
         self.model_d.train()
-        for image, _ in tqdm(self.train_loader, total=self.len_epoch, desc=f'Epoch: {self.epoch}'):
-            real_image = image.to(self.device)
+        for batch in tqdm(self.train_loader, total=self.len_epoch, desc=f'Epoch: {self.epoch}'):
+            real_image = batch['images'].to(self.device)
             batch_size = real_image.size()[0]
             real_label = torch.ones((batch_size, 1), dtype=torch.float).to(self.device)
             fake_label = torch.zeros((batch_size, 1), dtype=torch.float).to(self.device)
@@ -101,14 +111,52 @@ class Trainer:
     @torch.no_grad()
     def _generate_examples(self):
         self.model_g.eval()
-        fake_image = torch.randn(size=(64, 100)).to(self.device)
+        fake_image = torch.randn(size=(128, 100)).to(self.device)
         fake_image = self.model_g(fake_image)
 
         grid = vutils.make_grid(fake_image, nrow=8, padding=2, normalize=True)
         wandb.log({'generated_images': wandb.Image(grid)}, step=self.step)
+    
+    @torch.no_grad()
+    def _eval_epoch(self):
+        self.model_g.eval()
+        generated_dataset = []
+        real_dataset = []
+        ssim_index = 0
+        for batch in self.test_loader:
+            real_image = batch['images'].to(self.device)
+            batch_size = real_image.size()[0]
+            fake_image = torch.randn(size=(batch_size, 100)).to(self.device)
+            fake_image = self.model_g(fake_image)
+
+            fake_image = fake_image * 0.5 + 0.5
+            real_image = real_image * 0.5 + 0.5
+            generated_dataset.append(fake_image)
+            real_dataset.append(real_image)
+            ssim_index += ssim(fake_image, real_image, data_range=1.).item() * batch_size
+        ssim_index /= len(self.test_loader.dataset)
+
+        generated_dataset = torch.cat(generated_dataset, dim=0)
+        real_dataset = torch.cat(real_dataset, dim=0)
+        generated_dataset = DataLoader(
+            TensorDataset(generated_dataset, torch.zeros(generated_dataset.size()[0], )),
+            batch_size=batch_size, collate_fn=collate_fn
+        )
+        real_dataset = DataLoader(
+            TensorDataset(real_dataset, torch.zeros(real_dataset.size()[0], )),
+            batch_size=batch_size, collate_fn=collate_fn
+        )
+        fid_metric= FID()
+        first_feats = fid_metric.compute_feats(real_dataset)
+        second_feats = fid_metric.compute_feats(generated_dataset)
+        fid = fid_metric(first_feats, second_feats).item()
+
+        wandb.log({'FID': fid, 'SSIM': ssim_index}, step=self.step)
+
             
     def train(self, n_epoch: int):
         for epoch in range(self.start_epoch, n_epoch + 1):
             self.epoch = epoch
             self._train_epoch()
             self._generate_examples()
+            self._eval_epoch()

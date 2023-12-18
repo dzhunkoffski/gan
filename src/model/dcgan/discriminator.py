@@ -2,19 +2,21 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
+import torch.nn.utils.spectral_norm as SN
+
 class Discriminator(nn.Module):
     def __init__(self, activasion_slope: float = 0.2) -> None:
         super().__init__()
         self.convolutions = nn.Sequential(
-            nn.Conv2d(in_channels=3, out_channels=128, kernel_size=5, stride=2, padding=2),
+            SN(nn.Conv2d(in_channels=3, out_channels=128, kernel_size=5, stride=2, padding=2)),
             nn.LeakyReLU(negative_slope=activasion_slope),
-            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=5, stride=2, padding=2),
+            SN(nn.Conv2d(in_channels=128, out_channels=256, kernel_size=5, stride=2, padding=2)),
             nn.BatchNorm2d(num_features=256),
             nn.LeakyReLU(negative_slope=activasion_slope),
-            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=5, stride=2, padding=2),
+            SN(nn.Conv2d(in_channels=256, out_channels=512, kernel_size=5, stride=2, padding=2)),
             nn.BatchNorm2d(num_features=512),
             nn.LeakyReLU(negative_slope=activasion_slope),
-            nn.Conv2d(in_channels=512, out_channels=1024, kernel_size=5, stride=2, padding=2),
+            SN(nn.Conv2d(in_channels=512, out_channels=1024, kernel_size=5, stride=2, padding=2)),
             nn.BatchNorm2d(num_features=1024),
             nn.LeakyReLU(negative_slope=activasion_slope)
         )
